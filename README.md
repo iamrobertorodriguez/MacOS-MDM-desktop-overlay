@@ -7,7 +7,7 @@ The MDM profile blocks the native wallpaper mechanism (`com.apple.desktop`), but
 ## Requirements
 
 - MacOS Sonoma 14 or higher.
-- A wallpaper image placed the root of this project directory.
+- A wallpaper image placed at the root of this project directory.
 - No administrator privileges are required.
 
 ---
