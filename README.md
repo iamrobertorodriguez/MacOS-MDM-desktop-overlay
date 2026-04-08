@@ -1,176 +1,81 @@
 # DesktopOverlay
 
-Herramienta para establecer un fondo de pantalla personalizado en equipos macOS donde el wallpaper está restringido por un perfil MDM corporativo.
+A tool for setting a custom wallpaper on macOS devices where the desktop background is locked down by a corporate MDM profile.
 
-## Cómo funciona
+The MDM profile blocks the native wallpaper mechanism (`com.apple.desktop`), but it does not prevent user-level applications from creating windows at the desktop layer. DesktopOverlay places a borderless, click-through window above the system wallpaper but beneath every other application. The visual result is indistinguishable from a real desktop background.
 
-El perfil MDM bloquea el mecanismo nativo de wallpaper (`com.apple.desktop`), pero no impide que aplicaciones del usuario creen ventanas a nivel de escritorio. DesktopOverlay coloca una ventana borderless, invisible al mouse, por encima del wallpaper pero debajo de todas las aplicaciones. El resultado visual es indistinguible de un fondo de pantalla real.
+## Requirements
 
-## Requisitos
-
-- macOS Sonoma 14 o posterior.
-- Una imagen ubicada en `~/Documents/wallpaper/` con nombre `index` en cualquiera de estos formatos: `.jpg`, `.jpeg`, `.png`, `.heic`, `.tiff`, `.bmp`, `.gif`, `.webp`.
-- No se requieren permisos de administrador.
-
-## Estructura de archivos
-
-```
-~/Documents/wallpaper/
-├── DesktopOverlay          # Binario compilado
-├── DesktopOverlay.swift    # Código fuente
-├── index.jpg               # Tu imagen de fondo (cualquier formato soportado)
-├── overlay.log             # Log de ejecución
-└── README.md               # Este archivo
-```
+- MacOS Sonoma 14 or higher.
+- A wallpaper image placed the root of this project directory.
+- No administrator privileges are required.
 
 ---
 
-## Uso
+## Setup
 
-### Ejecutar una sola vez (sesión actual)
+### Step 1 — Place your wallpaper image
 
-Lanza el overlay manualmente. Se mantendrá activo hasta que cierres sesión o lo detengas:
+Add an image file named **`wallpaper`** to the root of this project directory (the same folder that contains `DesktopOverlay.swift`).
 
-```bash
-~/Documents/wallpaper/DesktopOverlay &
+The file must be named exactly `wallpaper` (lowercase) with any of the following extensions:
+
+`.jpg` · `.jpeg` · `.png` · `.heic` · `.tiff` · `.bmp` · `.gif` · `.webp`
+
+For example:
+
+```
+wallpaper.jpg
+wallpaper.png
+wallpaper.heic
 ```
 
-> El `&` al final envía el proceso a segundo plano para que puedas seguir usando la terminal.
+> **Tip:** For the best visual result, use an image whose resolution matches or exceeds your display resolution. The image will be scaled proportionally to fill the screen and centered; if the aspect ratio does not match your display, black bars will appear on the edges.
 
-### Detener el overlay
+Only one `wallpaper.*` file should be present at a time. If multiple formats exist, the first match found in the order listed above will be used.
 
-**Si lo ejecutaste manualmente:**
+### Step 2 — Build the binary
 
-1. Busca el PID del proceso:
-
-   ```bash
-   ps aux | grep '[D]esktopOverlay'
-   ```
-
-2. Detén el proceso usando el PID que aparece en la segunda columna:
-
-   ```bash
-   kill <PID>
-   ```
-
-**Si está corriendo como Launch Agent (ver sección siguiente):**
+Open **Terminal**, navigate to the project directory, and compile the Swift source into an executable by running:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.user.desktopoverlay.plist
+swiftc DesktopOverlay.swift -o DesktopOverlayLauncher -framework AppKit
 ```
 
-Esto lo detiene inmediatamente. El overlay **no** volverá a ejecutarse hasta que lo cargues de nuevo o reinicies sesión (si el plist sigue instalado).
+This produces a standalone binary called `DesktopOverlayLauncher` in the same directory.
 
----
+### Step 3 — Launch the binary
 
-### Ejecutar automáticamente al hacer login (persistente a reinicios)
-
-1. Copia el archivo de configuración del Launch Agent (si aún no existe):
-
-   ```bash
-   cat > ~/Library/LaunchAgents/com.user.desktopoverlay.plist << 'EOF'
-   <?xml version="1.0" encoding="UTF-8"?>
-   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-   <plist version="1.0">
-   <dict>
-       <key>Label</key>
-       <string>com.user.desktopoverlay</string>
-       <key>ProgramArguments</key>
-       <array>
-           <string>/Users/xmf5239/Documents/wallpaper/DesktopOverlay</string>
-       </array>
-       <key>RunAtLoad</key>
-       <true/>
-       <key>KeepAlive</key>
-       <true/>
-       <key>StandardOutPath</key>
-       <string>/Users/xmf5239/Documents/wallpaper/overlay.log</string>
-       <key>StandardErrorPath</key>
-       <string>/Users/xmf5239/Documents/wallpaper/overlay.log</string>
-   </dict>
-   </plist>
-   EOF
-   ```
-
-2. Carga el agente:
-
-   ```bash
-   launchctl load ~/Library/LaunchAgents/com.user.desktopoverlay.plist
-   ```
-
-3. Verifica que esté corriendo:
-
-   ```bash
-   launchctl list | grep desktopoverlay
-   ```
-
-   Deberás ver una línea con el PID y el label `com.user.desktopoverlay`.
-
-A partir de ahora, el overlay se ejecutará automáticamente cada vez que inicies sesión y se reiniciará si el proceso se cierra inesperadamente (gracias a `KeepAlive`).
-
-### Remover del login automático
-
-Para que el overlay deje de ejecutarse al iniciar sesión:
-
-1. Descarga el agente (esto también detiene el proceso activo):
-
-   ```bash
-   launchctl unload ~/Library/LaunchAgents/com.user.desktopoverlay.plist
-   ```
-
-2. Elimina el archivo plist:
-
-   ```bash
-   rm ~/Library/LaunchAgents/com.user.desktopoverlay.plist
-   ```
-
----
-
-### Cambiar la imagen de fondo de pantalla
-
-Simplemente reemplaza el archivo `index.*` en `~/Documents/wallpaper/` con tu nueva imagen:
+(Option 1 - Terminal): You can now launch the overlay by running:
 
 ```bash
-cp /ruta/a/mi_nueva_imagen.jpg ~/Documents/wallpaper/index.jpg
+./DesktopOverlayLauncher
 ```
 
-La app vigila la carpeta y **detecta cambios automáticamente**; no necesitas reiniciarla. Si cambias el formato (por ejemplo de `.jpg` a `.png`), asegúrate de eliminar el archivo anterior:
+(Option 2 - UI): Or you can also launch the overlay by double-clicking the binary result using the Finder.
+
+No matter wich option you used. The process automatically moves itself to the background — the Terminal window will be released immediately and you can close it. The overlay will remain active, invisible in both the Dock and the app switcher, until you log out or manually stop it.
+
+To stop it manually, find its process ID and terminate it:
 
 ```bash
-rm ~/Documents/wallpaper/index.jpg
-cp /ruta/a/mi_nueva_imagen.png ~/Documents/wallpaper/index.png
+ps aux | grep '[D]esktopOverlayLauncher'
+kill <PID>
 ```
 
-La imagen se escala proporcionalmente para cubrir la pantalla, centrada, con barras negras si la relación de aspecto no coincide. Para mejores resultados usa imágenes con resolución igual o superior a la de tu pantalla.
+Replace `<PID>` with the number shown in the second column of the output.
 
----
+> **Note:** The overlay watches the project directory for file changes. If you replace the wallpaper image while the overlay is running, it will detect the change and refresh automatically — no restart needed. If you switch to a different image format (e.g., from `.jpg` to `.png`), make sure to delete the old file first so only one `wallpaper.*` file exists.
 
-## Recompilar desde el código fuente
+### Step 4 — Start automatically at login *(optional)*
 
-Si modificas `DesktopOverlay.swift`, recompila con:
+If you want the overlay to launch every time you log in without having to run it manually, you can add the binary to your **Login Items**:
 
-```bash
-swiftc ~/Documents/wallpaper/DesktopOverlay.swift \
-  -o ~/Documents/wallpaper/DesktopOverlay \
-  -framework AppKit
-```
+1. Open **System Settings** (or **System Preferences** on older macOS versions).
+2. Navigate to **General → Login Items**.
+3. Under the **Open at Login** section, click the **+** button.
+4. In the file picker that appears, navigate to the project directory, select the **`DesktopOverlayLauncher`** binary, and click **Open**.
 
-Si el Launch Agent está activo, recárgalo para usar el nuevo binario:
+The binary will now run automatically every time you start your Mac or log in to your user account. Since it runs as a background process with no Dock icon or visible window, you will not notice it — your custom wallpaper will simply appear on the desktop.
 
-```bash
-launchctl unload ~/Library/LaunchAgents/com.user.desktopoverlay.plist
-launchctl load  ~/Library/LaunchAgents/com.user.desktopoverlay.plist
-```
-
-## Desinstalación completa
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.user.desktopoverlay.plist 2>/dev/null
-rm -f ~/Library/LaunchAgents/com.user.desktopoverlay.plist
-rm -rf ~/Documents/wallpaper/DesktopOverlay
-rm -rf ~/Documents/wallpaper/DesktopOverlay.swift
-rm -rf ~/Documents/wallpaper/overlay.log
-rm -rf ~/Documents/wallpaper/README.md
-```
-
-> La imagen `index.*` no se elimina para que no pierdas tu fondo personalizado.
+To remove it from Login Items later, go back to **System Settings → General → Login Items**, find `DesktopOverlayLauncher` in the list, and click the **−** button to remove it.
