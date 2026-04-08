@@ -5,10 +5,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var windows: [NSWindow] = []
     var fileWatcher: DispatchSourceFileSystemObject?
 
+    // Automatically resolve the directory where the executable resides
+    lazy var baseDirectory: String = {
+        let execURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        return execURL.deletingLastPathComponent().path
+    }()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let imagePath = resolveImagePath()
         guard let imagePath = imagePath else {
-            print("No index.* image found in ~/Documents/wallpaper/")
+            print("No wallpaper.* image found in \(baseDirectory)")
             NSApp.terminate(nil)
             return
         }
@@ -26,11 +32,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func resolveImagePath() -> String? {
-        let dir = NSString("~/Documents/wallpaper").expandingTildeInPath
+        let dir = baseDirectory
         let fm = FileManager.default
         let supported = ["jpg", "jpeg", "png", "heic", "tiff", "bmp", "gif", "webp"]
         for ext in supported {
-            let path = "\(dir)/index.\(ext)"
+            let path = "\(dir)/wallpaper.\(ext)"
             if fm.fileExists(atPath: path) {
                 return path
             }
@@ -77,7 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func watchForChanges() {
-        let dir = NSString("~/Documents/wallpaper").expandingTildeInPath
+        let dir = baseDirectory
         let fd = open(dir, O_EVTONLY)
         guard fd >= 0 else { return }
 
@@ -103,6 +109,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showOverlay(imagePath: path)
         }
     }
+}
+
+// Auto-background: re-launch itself detached so Terminal can close immediately
+if !CommandLine.arguments.contains("--background") {
+    let execURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+    let task = Process()
+    task.executableURL = execURL
+    task.arguments = Array(CommandLine.arguments.dropFirst()) + ["--background"]
+    task.standardInput = FileHandle.nullDevice
+    task.standardOutput = FileHandle.nullDevice
+    task.standardError = FileHandle.nullDevice
+    do {
+        try task.run()
+    } catch {
+        print("Failed to launch in background: \(error)")
+    }
+    exit(0)
 }
 
 let app = NSApplication.shared
